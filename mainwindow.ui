@@ -57,6 +57,12 @@
     <addaction name="actionAdd"/>
     <addaction name="actionEdit"/>
     <addaction name="actionRemove"/>
+    <addaction name="separator"/>
+    <addaction name="actionCopy"/>
+    <addaction name="actionPaste"/>
+    <addaction name="separator"/>
+    <addaction name="actionExportCSV"/>
+    <addaction name="actionImportCSV"/>
    </widget>
    <widget class="QMenu" name="menuAnalytics">
     <property name="title">
@@ -182,6 +188,32 @@
   <action name="actionSpanish">
    <property name="text">
     <string>Spanish</string>
+   </property>
+  </action>
+  <action name="actionPaste">
+   <property name="text">
+    <string>&amp;Paste</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+V</string>
+   </property>
+  </action>
+  <action name="actionCopy">
+   <property name="text">
+    <string>&amp;Copy</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
+   </property>
+  </action>
+  <action name="actionExportCSV">
+   <property name="text">
+    <string>E&amp;xport to CSV...</string>
+   </property>
+  </action>
+  <action name="actionImportCSV">
+   <property name="text">
+    <string>&amp;Import from CSV...</string>
    </property>
   </action>
  </widget>

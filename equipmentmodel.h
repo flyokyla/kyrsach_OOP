@@ -10,6 +10,7 @@
 
 #include <QAbstractTableModel>
 #include <QVector>
+#include <QMimeData>
 #include "equipmentrecord.h"
 
 /**
@@ -79,6 +80,43 @@ public:
      */
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
 
+    /**
+     * @brief Поддерживаемые операции перетаскивания
+     * @return Тип данных MIME для drag and drop
+     */
+    Qt::DropActions supportedDropActions() const override;
+    
+    /**
+     * @brief Поддерживаемые операции копирования
+     * @return Тип данных MIME для drag and drop
+     */
+    Qt::DropActions supportedDragActions() const override;
+    
+    /**
+     * @brief Создает MIME данные из выделенных индексов
+     * @param indexes Список выделенных индексов
+     * @return MIME данные
+     */
+    QMimeData* mimeData(const QModelIndexList &indexes) const override;
+    
+    /**
+     * @brief Обрабатывает вставку MIME данных
+     * @param data MIME данные
+     * @param action Действие перетаскивания
+     * @param row Строка вставки
+     * @param column Столбец вставки
+     * @param parent Родительский индекс
+     * @return true если данные успешно вставлены
+     */
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action,
+                      int row, int column, const QModelIndex &parent) override;
+    
+    /**
+     * @brief Возвращает поддерживаемые MIME типы
+     * @return Список MIME типов
+     */
+    QStringList mimeTypes() const override;
+
     // Методы управления данными
     /**
      * @brief Загружает данные из файла
@@ -136,6 +174,13 @@ public:
     bool isIdUnique(const QString &id, int excludeRow = -1) const;
 
     /**
+     * @brief Проверяет существование оборудования с указанным ID
+     * @param id ID для проверки
+     * @return true если оборудование с таким ID существует
+     */
+    bool hasEquipmentId(const QString &id) const;
+
+    /**
      * @brief Возвращает все записи оборудования
      * @return Ссылка на вектор записей
      */
@@ -145,10 +190,39 @@ public:
      * @brief Обновляет заголовки столбцов для многоязычности
      */
     void updateHeaders();
+    
+    /**
+     * @brief Экспортирует данные в CSV формат
+     * @param indexes Список индексов для экспорта
+     * @return CSV строка
+     */
+    QString exportToCSV(const QModelIndexList &indexes) const;
+    
+    /**
+     * @brief Импортирует данные из CSV формата
+     * @param csvData CSV строка
+     * @param targetRow Целевая строка для вставки
+     * @param targetCol Целевой столбец для вставки
+     * @return true если импорт успешен
+     */
+    bool importFromCSV(const QString &csvData, int targetRow, int targetCol);
 
 private:
     QVector<EquipmentRecord> m_records;  ///< Контейнер для хранения записей оборудования
     QStringList m_headers;               ///< Заголовки столбцов таблицы
+    
+    /**
+     * @brief Генерирует уникальный ID для новой записи
+     * @return Уникальный ID
+     */
+    QString generateUniqueId() const;
+    
+    /**
+     * @brief Разбирает строку CSV с учетом кавычек и экранирования
+     * @param row Строка CSV
+     * @return Список полей
+     */
+    QStringList parseCSVRow(const QString &row) const;
 };
 
 #endif // EQUIPMENTMODEL_H

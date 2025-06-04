@@ -1,0 +1,10 @@
+HEADER:OfficeEquipmentDBv1
+1;Label Printer;Brother QL-800;SN70707;2022-06-12;180.00;Room 104;Active;Label maker
+2;Tablet;iPad Pro;SN55555;2023-04-05;1100.00;Room 103;Active;Field work tablet
+3;UPS;APC Smart-UPS;SN66666;2022-01-10;300.00;Server Room;Active;Power backup
+4;Router;Cisco ISR4331;SN77777;2021-12-15;1200.00;Server Room;Active;Network router
+5;Phone;Cisco IP Phone;SN88888;2022-07-25;180.00;Room 101;Active;VoIP phone
+6;Keyboard;Logitech MX Keys;SN10101;2023-01-20;120.00;Room 102;Active;Wireless keyboard
+7;External HDD;Seagate Backup;SN50505;2023-02-28;150.00;Room 101;Active;2TB backup drive
+8;Network Switch;Netgear GS724T;SN60606;2022-03-18;220.00;Server Room;Active;24-port switch
+9;Shredder;Fellowes Powershred;SN80808;2021-10-08;320.00;Room 105;Active;Document shredder

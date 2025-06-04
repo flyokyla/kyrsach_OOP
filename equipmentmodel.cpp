@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include <QDate>
+#include <QClipboard>
+#include <QApplication>
 
 EquipmentModel::EquipmentModel(QObject *parent) : QAbstractTableModel(parent) {
     updateHeaders();
@@ -87,10 +89,270 @@ bool EquipmentModel::setData(const QModelIndex &index, const QVariant &value, in
 }
 
 Qt::ItemFlags EquipmentModel::flags(const QModelIndex &index) const {
-    Qt::ItemFlags flags = QAbstractTableModel::flags(index);
+    Qt::ItemFlags defaultFlags = QAbstractTableModel::flags(index);
     if (index.isValid())
-        flags |= Qt::ItemIsEditable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
-    return flags;
+        return defaultFlags | Qt::ItemIsEditable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
+    return defaultFlags | Qt::ItemIsDropEnabled;
+}
+
+Qt::DropActions EquipmentModel::supportedDropActions() const {
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+Qt::DropActions EquipmentModel::supportedDragActions() const {
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+QStringList EquipmentModel::mimeTypes() const {
+    QStringList types;
+    types << "application/vnd.text.list"
+          << "text/csv"
+          << "text/plain";
+    return types;
+}
+
+QMimeData* EquipmentModel::mimeData(const QModelIndexList &indexes) const {
+    QMimeData *mimeData = new QMimeData();
+    QString csv = exportToCSV(indexes);
+    mimeData->setData("text/csv", csv.toUtf8());
+    mimeData->setData("text/plain", csv.toUtf8());
+    
+    // Сохраняем структурированные данные для внутреннего перетаскивания
+    QByteArray encodedData;
+    QDataStream stream(&encodedData, QIODevice::WriteOnly);
+    
+    // Запись количества строк и столбцов
+    QMap<int, QMap<int, QVariant>> cellData;
+    
+    foreach (QModelIndex index, indexes) {
+        if (index.isValid()) {
+            cellData[index.row()][index.column()] = data(index, Qt::DisplayRole);
+        }
+    }
+    
+    stream << cellData;
+    mimeData->setData("application/vnd.text.list", encodedData);
+    
+    return mimeData;
+}
+
+bool EquipmentModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
+                                 int row, int column, const QModelIndex &parent) {
+    if (action == Qt::IgnoreAction)
+        return true;
+    
+    // Если это внутреннее перетаскивание (между табами)
+    if (data->hasFormat("application/vnd.text.list")) {
+        QByteArray encodedData = data->data("application/vnd.text.list");
+        QDataStream stream(&encodedData, QIODevice::ReadOnly);
+        
+        QMap<int, QMap<int, QVariant>> cellData;
+        stream >> cellData;
+        
+        int targetRow = row;
+        if (targetRow < 0) {
+            if (parent.isValid())
+                targetRow = parent.row();
+            else
+                targetRow = rowCount();
+        }
+        
+        // Вставляем новые строки для данных, если нужно
+        int requiredRows = targetRow + cellData.size();
+        while (rowCount() < requiredRows) {
+            EquipmentRecord newRecord;
+            newRecord.id = generateUniqueId();
+            addRecord(newRecord);
+        }
+        
+        // Копируем данные
+        if (!cellData.isEmpty()) {
+            int firstRowKey = cellData.firstKey();
+            
+            for (auto rowIt = cellData.begin(); rowIt != cellData.end(); ++rowIt) {
+                int currentRow = targetRow + (rowIt.key() - firstRowKey);
+                QMap<int, QVariant> columnData = rowIt.value();
+                
+                if (!columnData.isEmpty()) {
+                    int firstColKey = columnData.firstKey();
+                    
+                    for (auto colIt = columnData.begin(); colIt != columnData.end(); ++colIt) {
+                        int targetCol = column >= 0 ? column + (colIt.key() - firstColKey) : colIt.key();
+                        setData(index(currentRow, targetCol), colIt.value());
+                    }
+                }
+            }
+        }
+        
+        return true;
+    }
+    
+    // Импорт из CSV
+    if (data->hasFormat("text/csv") || data->hasFormat("text/plain")) {
+        QString csvData = QString::fromUtf8(data->data(
+            data->hasFormat("text/csv") ? "text/csv" : "text/plain"));
+            
+        int targetRow = row;
+        if (targetRow < 0) {
+            if (parent.isValid())
+                targetRow = parent.row();
+            else
+                targetRow = rowCount();
+        }
+        
+        int targetCol = column;
+        if (targetCol < 0 && parent.isValid()) {
+            targetCol = parent.column();
+        }
+        
+        return importFromCSV(csvData, targetRow, targetCol);
+    }
+    
+    return false;
+}
+
+QString EquipmentModel::exportToCSV(const QModelIndexList &indexes) const {
+    // Находим границы выделенной области
+    int minRow = -1, maxRow = -1, minCol = -1, maxCol = -1;
+    
+    foreach (QModelIndex index, indexes) {
+        if (!index.isValid())
+            continue;
+            
+        if (minRow == -1 || index.row() < minRow)
+            minRow = index.row();
+            
+        if (maxRow == -1 || index.row() > maxRow)
+            maxRow = index.row();
+            
+        if (minCol == -1 || index.column() < minCol)
+            minCol = index.column();
+            
+        if (maxCol == -1 || index.column() > maxCol)
+            maxCol = index.column();
+    }
+    
+    if (minRow == -1 || maxRow == -1 || minCol == -1 || maxCol == -1)
+        return QString();
+        
+    // Создаем CSV из выделенных ячеек
+    QString csv;
+    QTextStream stream(&csv, QIODevice::WriteOnly);
+    
+    for (int row = minRow; row <= maxRow; ++row) {
+        QStringList rowData;
+        
+        for (int col = minCol; col <= maxCol; ++col) {
+            QModelIndex idx = index(row, col);
+            QVariant value = data(idx, Qt::DisplayRole);
+            
+            // Экранируем двойные кавычки и обрамляем поле кавычками если есть запятые
+            QString cellData = value.toString();
+            if (cellData.contains('"'))
+                cellData.replace("\"", "\"\"");
+                
+            if (cellData.contains(',') || cellData.contains('\n') || cellData.contains('"'))
+                cellData = "\"" + cellData + "\"";
+                
+            rowData << cellData;
+        }
+        
+        stream << rowData.join(",") << "\n";
+    }
+    
+    return csv;
+}
+
+bool EquipmentModel::importFromCSV(const QString &csvData, int targetRow, int targetCol) {
+    if (csvData.isEmpty())
+        return false;
+        
+    QStringList rows = csvData.split('\n', Qt::SkipEmptyParts);
+    if (rows.isEmpty())
+        return false;
+        
+    // Проверяем, нужно ли добавить новые строки
+    int requiredRows = targetRow + rows.size();
+    while (rowCount() < requiredRows) {
+        EquipmentRecord newRecord;
+        newRecord.id = generateUniqueId();
+        addRecord(newRecord);
+    }
+    
+    // Парсим и вставляем данные из CSV
+    int currentRow = targetRow;
+    
+    foreach (const QString &row, rows) {
+        // Простое разделение по запятым (улучшенный парсер учтет кавычки и экранирование)
+        QStringList fields = parseCSVRow(row);
+        
+        int currentCol = targetCol;
+        foreach (const QString &field, fields) {
+            if (currentCol < columnCount()) {
+                setData(index(currentRow, currentCol), field);
+                currentCol++;
+            }
+        }
+        
+        currentRow++;
+        if (currentRow >= rowCount())
+            break;
+    }
+    
+    return true;
+}
+
+// Вспомогательный метод для правильного разбора строки CSV
+QStringList EquipmentModel::parseCSVRow(const QString &row) const {
+    QStringList fields;
+    QString field;
+    bool inQuotes = false;
+    
+    for (int i = 0; i < row.length(); i++) {
+        QChar c = row[i];
+        
+        // Обработка кавычек
+        if (c == '"') {
+            if (i < row.length() - 1 && row[i+1] == '"') {
+                // Экранированная кавычка
+                field += '"';
+                i++; // Пропускаем вторую кавычку
+            } else {
+                // Переключаем флаг кавычек
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+        
+        // Обработка запятых
+        if (c == ',' && !inQuotes) {
+            fields.append(field);
+            field.clear();
+            continue;
+        }
+        
+        // Добавляем символ в поле
+        field += c;
+    }
+    
+    // Добавляем последнее поле
+    fields.append(field);
+    
+    return fields;
+}
+
+QString EquipmentModel::generateUniqueId() const {
+    int maxId = 0;
+    
+    foreach (const EquipmentRecord &record, m_records) {
+        bool ok;
+        int id = record.id.toInt(&ok);
+        if (ok && id > maxId) {
+            maxId = id;
+        }
+    }
+    
+    return QString::number(maxId + 1);
 }
 
 bool EquipmentModel::loadFromFile(const QString& filename) {
@@ -182,4 +444,8 @@ bool EquipmentModel::isIdUnique(const QString &id, int excludeRow) const {
         }
     }
     return true;
+}
+
+bool EquipmentModel::hasEquipmentId(const QString &id) const {
+    return !isIdUnique(id, -1);
 }

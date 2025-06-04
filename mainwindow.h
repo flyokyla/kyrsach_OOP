@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QSet>
+#include <QLabel>
 #include "equipmentmodel.h"
 
 QT_BEGIN_NAMESPACE
@@ -75,6 +76,12 @@ protected:
      * @param event Событие изменения
      */
     void changeEvent(QEvent *event) override;
+
+    /**
+     * @brief Обработчик нажатия клавиш
+     * @param event Событие клавиатуры
+     */
+    void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
     /**
@@ -158,6 +165,32 @@ private slots:
      * @param text Текст для поиска
      */
     void filterBySelectedColumn(const QString &text);
+    
+    /**
+     * @brief Копирует выделенные ячейки в буфер обмена
+     */
+    void copySelectedCells();
+    
+    /**
+     * @brief Вставляет данные из буфера обмена
+     */
+    void pasteFromClipboard();
+    
+    /**
+     * @brief Экспортирует выделенные ячейки в CSV файл
+     */
+    void exportToCSV();
+    
+    /**
+     * @brief Импортирует CSV данные из файла
+     */
+    void importFromCSV();
+
+    /**
+     * @brief Отображает контекстное меню таблицы
+     * @param pos Позиция для отображения меню
+     */
+    void showContextMenu(const QPoint &pos);
 
 private:
     Ui::MainWindow *ui;
@@ -175,12 +208,28 @@ private:
     void restoreState();
     void updateWindowTitle();
     void updateStatusBar();
-    TabData* getCurrentTab();
-    int createNewTab(const QString &fileName = QString());
-    void setupTabView(TabData &tabData);
-    bool closeTab(int index);
     void setupColumnFilters(TabData &tabData);
     void updateColumnFilter(TabData &tabData, int column);
-    void showContextMenu(const QPoint &pos);
+    
+    /**
+     * @brief Получает указатель на текущую вкладку
+     * @return Указатель на TabData или nullptr
+     */
+    TabData* getCurrentTab() const;
+    
+    /**
+     * @brief Получает указатель на текущую таблицу
+     * @return Указатель на QTableView или nullptr
+     */
+    QTableView* getCurrentTableView() const;
+    
+    /**
+     * @brief Получает указатель на текущую модель данных
+     * @return Указатель на EquipmentModel или nullptr
+     */
+    EquipmentModel* getCurrentModel() const;
+
+    int createNewTab(const QString &fileName = QString());
+    bool closeTab(int index);
 };
 #endif // MAINWINDOW_H

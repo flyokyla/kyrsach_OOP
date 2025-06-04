@@ -4,35 +4,24 @@
 #include "aboutdialog.h"
 #include "chartwindow.h"
 #include "settings.h"
-#include "comboboxdelegate.h"
-#include "datedelegate.h"
+
 #include <QFileDialog>
-#include <QFileInfo>
 #include <QMessageBox>
 #include <QPrintDialog>
 #include <QPrinter>
-#include <QTextDocument>
-#include <QTextStream>
-#include <QSortFilterProxyModel>
+#include <QKeyEvent>
+#include <QShortcut>
+#include <QMimeData>
 #include <QClipboard>
-#include <QHeaderView>
-#include <QContextMenuEvent>
-#include <QTabBar>
 #include <QMenu>
-#include <QMenuBar>
+#include <QDir>
+#include <QTextStream>
 #include <QStatusBar>
-#include <QApplication>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QTableView>
-#include <QLineEdit>
-#include <QFile>
-#include <QRegularExpression>
-#include <QTranslator>
-#include <QDebug>
-#include <QLabel>
 #include <QComboBox>
-#include <QSet>
+#include <QLineEdit>
+#include <QHeaderView>
+#include <QMap>
+#include <QRegularExpression>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -41,6 +30,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     
     m_tabWidget = ui->tabWidget;
+    m_tabWidget->setTabsClosable(true); // Включаем возможность закрытия вкладок
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
     connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &MainWindow::onTabCloseRequested);
     
@@ -48,8 +38,17 @@ MainWindow::MainWindow(QWidget *parent)
     restoreState();
     loadLanguage(Settings::language());
     
-    // Создаем первый таб
-    createNewTab();
+    // Создаем первый таб если нет вкладок
+    if (m_tabs.isEmpty()) {
+        createNewTab();
+    }
+    
+    // Добавляем горячие клавиши
+    QShortcut* copyShortcut = new QShortcut(QKeySequence::Copy, this);
+    connect(copyShortcut, &QShortcut::activated, this, &MainWindow::copySelectedCells);
+    
+    QShortcut* pasteShortcut = new QShortcut(QKeySequence::Paste, this);
+    connect(pasteShortcut, &QShortcut::activated, this, &MainWindow::pasteFromClipboard);
 }
 
 MainWindow::~MainWindow() {
@@ -98,33 +97,60 @@ int MainWindow::createNewTab(const QString &fileName) {
     // Создаем фильтры по столбцам
     tabData.filterWidget = new QWidget();
     QHBoxLayout *filterLayout = new QHBoxLayout(tabData.filterWidget);
-    filterLayout->addWidget(new QLabel(tr("Column Filter:")));
+    filterLayout->setContentsMargins(0, 0, 0, 0);
+    QLabel *filterLabel = new QLabel(tr("Column Filter:"));
     
     tabData.columnFilterCombo = new QComboBox();
-    tabData.columnFilterCombo->setEditable(true);
+    tabData.columnFilterCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     tabData.columnFilterCombo->setVisible(false); // Скрыто по умолчанию
+    
+    filterLayout->addWidget(filterLabel);
     filterLayout->addWidget(tabData.columnFilterCombo);
     filterLayout->addStretch();
     layout->addWidget(tabData.filterWidget);
     
     // Создаем таблицу
     tabData.tableView = new QTableView();
-    setupTabView(tabData);
-    layout->addWidget(tabData.tableView);
+    tabData.tableView->setModel(tabData.proxyModel);
+    tabData.tableView->setSortingEnabled(true);
+    tabData.tableView->horizontalHeader()->setSectionsClickable(true);
+    tabData.tableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    tabData.tableView->setDragEnabled(true);
+    tabData.tableView->setAcceptDrops(true);
+    tabData.tableView->setDropIndicatorShown(true);
+    tabData.tableView->setDragDropMode(QAbstractItemView::DragDrop);
+    
+    // Настраиваем размеры столбцов
+    for (int i = 0; i < tabData.model->columnCount(); ++i) {
+        tabData.tableView->setColumnWidth(i, 100);
+    }
+    
+    // Устанавливаем высоту строк
+    tabData.tableView->verticalHeader()->setDefaultSectionSize(30);
+    
+    // Подключаем клик по заголовку для выбора столбца поиска
+    connect(tabData.tableView->horizontalHeader(), &QHeaderView::sectionClicked, 
+            this, &MainWindow::onHeaderClicked);
+    
+    // Подключаем контекстное меню
+    tabData.tableView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tabData.tableView, &QTableView::customContextMenuRequested, 
+            this, &MainWindow::showContextMenu);
     
     // Подключаем поиск по выбранному столбцу
-    connect(tabData.searchEdit, &QLineEdit::textChanged, [this, &tabData](const QString &text) {
-        filterBySelectedColumn(text);
-    });
+    connect(tabData.searchEdit, &QLineEdit::textChanged, 
+            this, &MainWindow::filterBySelectedColumn);
     
     // Подключаем фильтр по столбцам
-    connect(tabData.columnFilterCombo, QOverload<const QString &>::of(&QComboBox::currentTextChanged),
-            [this](const QString &text) {
-                onColumnFilterChanged(text);
-            });
+    connect(tabData.columnFilterCombo, &QComboBox::currentTextChanged,
+            this, &MainWindow::onColumnFilterChanged);
     
+    layout->addWidget(tabData.tableView);
+    
+    // Добавляем TabData в список
     m_tabs.append(tabData);
     
+    // Добавляем виджет на вкладку
     QString tabTitle = fileName.isEmpty() ? tr("New Document") : QFileInfo(fileName).baseName();
     int index = m_tabWidget->addTab(tabWidget, tabTitle);
     m_tabWidget->setCurrentIndex(index);
@@ -132,72 +158,61 @@ int MainWindow::createNewTab(const QString &fileName) {
     return index;
 }
 
-void MainWindow::setupTabView(TabData &tabData) {
-    tabData.tableView->setModel(tabData.proxyModel);
-    tabData.tableView->setSortingEnabled(true);
-    tabData.tableView->setContextMenuPolicy(Qt::CustomContextMenu);
-    tabData.tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tabData.tableView->setAlternatingRowColors(true);
-    tabData.tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    tabData.tableView->verticalHeader()->setVisible(false);
-    
-    // Подключаем клик по заголовкам для выбора столбца поиска
-    connect(tabData.tableView->horizontalHeader(), &QHeaderView::sectionClicked,
-            this, &MainWindow::onHeaderClicked);
-    
-    // Устанавливаем делегаты для комбо-боксов
-    QStringList typeItems = {"Printer", "Monitor", "Desktop PC", "Laptop", "Plotter", "Scanner", 
-                           "Projector", "Tablet", "UPS", "Router", "Phone", "Server", 
-                           "Keyboard", "Mouse", "Webcam", "Headset", "External HDD", 
-                           "Network Switch", "Label Printer", "Shredder"};
-    
-    QStringList statusItems = {"Active", "Inactive", "Maintenance", "Retired"};
-    
-    ComboBoxDelegate *typeDelegate = new ComboBoxDelegate(typeItems, this);
-    ComboBoxDelegate *statusDelegate = new ComboBoxDelegate(statusItems, this);
-    DateDelegate *dateDelegate = new DateDelegate(this);
-    
-    tabData.tableView->setItemDelegateForColumn(1, typeDelegate); // Type column
-    tabData.tableView->setItemDelegateForColumn(4, dateDelegate); // Purchase Date column
-    tabData.tableView->setItemDelegateForColumn(7, statusDelegate); // Status column
-    
-    // Подключаем контекстное меню
-    connect(tabData.tableView, &QTableView::customContextMenuRequested,
-            this, &MainWindow::showContextMenu);
-}
-
-TabData* MainWindow::getCurrentTab() {
+TabData* MainWindow::getCurrentTab() const {
     int index = m_tabWidget->currentIndex();
     if (index >= 0 && index < m_tabs.size()) {
-        return &m_tabs[index];
+        return &(const_cast<MainWindow*>(this)->m_tabs[index]);
     }
     return nullptr;
 }
 
 void MainWindow::setupConnections() {
-    // Подключения для действий файла
+    // File menu
     connect(ui->actionNew, &QAction::triggered, this, &MainWindow::newDocument);
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::openFile);
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
     connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveAs);
     connect(ui->actionPrint, &QAction::triggered, this, &MainWindow::print);
-    connect(ui->actionExit, &QAction::triggered, qApp, &QApplication::quit);
+    connect(ui->actionExit, &QAction::triggered, this, &QApplication::quit);
     
-    // Подключения для действий редактирования
+    // Edit menu
     connect(ui->actionAdd, &QAction::triggered, this, &MainWindow::addRecord);
     connect(ui->actionEdit, &QAction::triggered, this, &MainWindow::editRecord);
     connect(ui->actionRemove, &QAction::triggered, this, &MainWindow::removeRecord);
     
-    // Подключения для аналитики
+    // Add copy/paste actions to Edit menu
+    QAction *copyAction = new QAction(tr("&Copy"), this);
+    copyAction->setShortcut(QKeySequence::Copy);
+    connect(copyAction, &QAction::triggered, this, &MainWindow::copySelectedCells);
+    ui->menuEdit->addSeparator();
+    ui->menuEdit->addAction(copyAction);
+    
+    QAction *pasteAction = new QAction(tr("&Paste"), this);
+    pasteAction->setShortcut(QKeySequence::Paste);
+    connect(pasteAction, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
+    ui->menuEdit->addAction(pasteAction);
+    
+    // Add CSV import/export actions
+    QMenu *csvMenu = ui->menuFile->addMenu(tr("&CSV"));
+    
+    QAction *exportCSVAction = new QAction(tr("&Export Selection to CSV..."), this);
+    connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
+    csvMenu->addAction(exportCSVAction);
+    
+    QAction *importCSVAction = new QAction(tr("&Import CSV..."), this);
+    connect(importCSVAction, &QAction::triggered, this, &MainWindow::importFromCSV);
+    csvMenu->addAction(importCSVAction);
+    
+    // Help menu
+    connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::showAbout);
+    
+    // Chart menu
     connect(ui->actionChart, &QAction::triggered, this, &MainWindow::showChart);
     
-    // Подключения для языков
+    // Language menu
     connect(ui->actionEnglish, &QAction::triggered, this, &MainWindow::switchToEnglish);
     connect(ui->actionRussian, &QAction::triggered, this, &MainWindow::switchToRussian);
     connect(ui->actionSpanish, &QAction::triggered, this, &MainWindow::switchToSpanish);
-    
-    // Подключения для справки
-    connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::showAbout);
 }
 
 void MainWindow::retranslateUi() {
@@ -241,6 +256,15 @@ void MainWindow::openFile() {
 }
 
 void MainWindow::loadFile(const QString &fileName) {
+    if (fileName.isEmpty())
+        return;
+        
+    QFile file(fileName);
+    if (!file.exists()) {
+        QMessageBox::warning(this, tr("Error"), tr("File does not exist: %1").arg(fileName));
+        return;
+    }
+    
     int tabIndex = createNewTab(fileName);
     TabData *tab = &m_tabs[tabIndex];
     
@@ -250,7 +274,7 @@ void MainWindow::loadFile(const QString &fileName) {
         updateWindowTitle();
         updateStatusBar();
     } else {
-        QMessageBox::warning(this, tr("Error"), tr("Could not open file"));
+        QMessageBox::warning(this, tr("Error"), tr("Could not open file: %1").arg(fileName));
         closeTab(tabIndex);
     }
 }
@@ -405,17 +429,61 @@ void MainWindow::updateStatusBar() {
     }
 }
 
-void MainWindow::showContextMenu(const QPoint &pos) {
-    TabData *tab = getCurrentTab();
-    if (!tab) return;
-    
-    QModelIndex index = tab->tableView->indexAt(pos);
-    if (!index.isValid()) return;
-    
+void MainWindow::showContextMenu(const QPoint &pos)
+{
+    QTableView* tableView = getCurrentTableView();
+    if (!tableView)
+        return;
+
+    // Создаем контекстное меню
     QMenu contextMenu(this);
-    contextMenu.addAction(ui->actionEdit);
-    contextMenu.addAction(ui->actionRemove);
-    contextMenu.exec(tab->tableView->mapToGlobal(pos));
+    
+    // Получаем индекс для клика
+    QModelIndex index = tableView->indexAt(pos);
+    
+    if (index.isValid()) {
+        // Добавляем пункты для редактирования и удаления записи
+        QAction *editAction = new QAction(tr("Edit"), this);
+        connect(editAction, &QAction::triggered, this, &MainWindow::editRecord);
+        contextMenu.addAction(editAction);
+        
+        QAction *removeAction = new QAction(tr("Remove"), this);
+        connect(removeAction, &QAction::triggered, this, &MainWindow::removeRecord);
+        contextMenu.addAction(removeAction);
+        
+        // Добавляем сепаратор
+        contextMenu.addSeparator();
+    }
+    
+    // Добавляем пункт для создания записи
+    QAction *addAction = new QAction(tr("Add"), this);
+    connect(addAction, &QAction::triggered, this, &MainWindow::addRecord);
+    contextMenu.addAction(addAction);
+    
+    // Добавляем Copy/Paste
+    contextMenu.addSeparator();
+    
+    QAction *copyAction = new QAction(tr("Copy"), this);
+    connect(copyAction, &QAction::triggered, this, &MainWindow::copySelectedCells);
+    contextMenu.addAction(copyAction);
+    
+    QAction *pasteAction = new QAction(tr("Paste"), this);
+    connect(pasteAction, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
+    contextMenu.addAction(pasteAction);
+    
+    // Добавляем опции для экспорта/импорта
+    contextMenu.addSeparator();
+    
+    QAction *exportAction = new QAction(tr("Export to CSV..."), this);
+    connect(exportAction, &QAction::triggered, this, &MainWindow::exportToCSV);
+    contextMenu.addAction(exportAction);
+    
+    QAction *importAction = new QAction(tr("Import from CSV..."), this);
+    connect(importAction, &QAction::triggered, this, &MainWindow::importFromCSV);
+    contextMenu.addAction(importAction);
+    
+    // Показываем контекстное меню
+    contextMenu.exec(tableView->viewport()->mapToGlobal(pos));
 }
 
 void MainWindow::filterTable(const QString &text) {
@@ -432,11 +500,14 @@ void MainWindow::onTabChanged(int index) {
 }
 
 void MainWindow::onTabCloseRequested(int index) {
-    closeTab(index);
+    if (index >= 0 && index < m_tabWidget->count() && index < m_tabs.size()) {
+        closeTab(index);
+    }
 }
 
 bool MainWindow::closeTab(int index) {
-    if (index < 0 || index >= m_tabs.size()) return false;
+    if (index < 0 || index >= m_tabs.size())
+        return false;
     
     TabData &tab = m_tabs[index];
     if (tab.isModified) {
@@ -446,8 +517,13 @@ bool MainWindow::closeTab(int index) {
         
         if (ret == QMessageBox::Save) {
             // Сохраняем файл
+            m_tabWidget->setCurrentIndex(index);
             if (tab.fileName.isEmpty()) {
-                // Логика Save As
+                saveAs();
+                // Если после saveAs файл всё ещё не имеет имени, значит пользователь отменил сохранение
+                if (tab.fileName.isEmpty()) {
+                    return false;
+                }
             } else {
                 tab.model->saveToFile(tab.fileName);
             }
@@ -456,17 +532,26 @@ bool MainWindow::closeTab(int index) {
         }
     }
     
+    // Удаляем виджет вкладки
+    QWidget *tabWidget = m_tabWidget->widget(index);
+    if (tabWidget) {
+        delete tabWidget;
+    }
+    
     // Удаляем объекты
     delete tab.model;
     delete tab.proxyModel;
     
+    // Удаляем TabData
     m_tabs.removeAt(index);
-    m_tabWidget->removeTab(index);
     
     // Если это был последний таб, создаем новый
     if (m_tabs.isEmpty()) {
         createNewTab();
     }
+    
+    updateWindowTitle();
+    updateStatusBar();
     
     return true;
 }
@@ -564,4 +649,374 @@ void MainWindow::onColumnFilterChanged(const QString &filterValue) {
         tab->proxyModel->setFilterKeyColumn(columnToFilter);
         tab->proxyModel->setFilterFixedString(filterValue);
     }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event) {
+    switch (event->key()) {
+        case Qt::Key_C:
+            if (event->modifiers() & Qt::ControlModifier) {
+                copySelectedCells();
+            }
+            break;
+            
+        case Qt::Key_V:
+            if (event->modifiers() & Qt::ControlModifier) {
+                pasteFromClipboard();
+            }
+            break;
+            
+        default:
+            QMainWindow::keyPressEvent(event);
+    }
+}
+
+void MainWindow::copySelectedCells()
+{
+    QTableView* tableView = getCurrentTableView();
+    if (!tableView)
+        return;
+
+    // Получаем выделенные ячейки
+    QModelIndexList selectedIndexes = tableView->selectionModel()->selectedIndexes();
+    if (selectedIndexes.isEmpty())
+        return;
+
+    // Находим минимальные и максимальные строки и столбцы для определения размеров буфера
+    int minRow = INT_MAX, maxRow = 0, minCol = INT_MAX, maxCol = 0;
+    for (const QModelIndex &index : selectedIndexes) {
+        minRow = std::min(minRow, index.row());
+        maxRow = std::max(maxRow, index.row());
+        minCol = std::min(minCol, index.column());
+        maxCol = std::max(maxCol, index.column());
+    }
+
+    // Создаем строку CSV
+    QString csv;
+    for (int row = minRow; row <= maxRow; ++row) {
+        QStringList rowData;
+        for (int col = minCol; col <= maxCol; ++col) {
+            QModelIndex index = tableView->model()->index(row, col);
+            if (tableView->selectionModel()->isSelected(index)) {
+                QString data = tableView->model()->data(index).toString();
+                // Экранируем кавычки и добавляем кавычки если нужно
+                if (data.contains(',') || data.contains('"') || data.contains('\n')) {
+                    data.replace("\"", "\"\"");
+                    data = "\"" + data + "\"";
+                }
+                rowData.append(data);
+            } else {
+                rowData.append("");
+            }
+        }
+        csv += rowData.join(",") + "\n";
+    }
+
+    // Помещаем данные в буфер обмена
+    QMimeData* mimeData = new QMimeData;
+    mimeData->setData("text/csv", csv.toUtf8());
+    mimeData->setText(csv);
+    QApplication::clipboard()->setMimeData(mimeData);
+    
+    statusBar()->showMessage(tr("Selected data copied to clipboard"), 3000);
+}
+
+void MainWindow::pasteFromClipboard()
+{
+    QTableView* tableView = getCurrentTableView();
+    if (!tableView)
+        return;
+
+    // Получаем данные из буфера обмена
+    const QMimeData* mimeData = QApplication::clipboard()->mimeData();
+    if (!mimeData->hasText())
+        return;
+
+    // Получаем текущий индекс, куда будем вставлять данные
+    QModelIndex currentIndex = tableView->currentIndex();
+    if (!currentIndex.isValid()) {
+        // Если нет текущего индекса, используем верхний левый угол
+        currentIndex = tableView->model()->index(0, 0);
+    }
+
+    int startRow = currentIndex.row();
+    int startCol = currentIndex.column();
+
+    // Парсим CSV
+    QString csv = mimeData->text();
+    QStringList rows = csv.split('\n', Qt::SkipEmptyParts);
+    
+    // Создаем модифицированные записи
+    for (int i = 0; i < rows.size(); ++i) {
+        QString row = rows[i];
+        QStringList columns;
+        
+        // Корректно обрабатываем CSV с учетом кавычек
+        bool inQuote = false;
+        int quoteStart = -1;
+        QString col;
+        
+        for (int j = 0; j < row.size(); ++j) {
+            const QChar c = row[j];
+            
+            if (c == '"') {
+                if (inQuote) {
+                    // Проверяем двойные кавычки
+                    if (j + 1 < row.size() && row[j + 1] == '"') {
+                        col += '"';
+                        j++; // Пропускаем следующую кавычку
+                    } else {
+                        inQuote = false;
+                    }
+                } else {
+                    inQuote = true;
+                    quoteStart = j;
+                }
+            } else if (c == ',' && !inQuote) {
+                columns.append(col);
+                col.clear();
+            } else {
+                col += c;
+            }
+        }
+        
+        if (!col.isEmpty()) {
+            columns.append(col);
+        }
+        
+        // Обновляем данные модели
+        for (int j = 0; j < columns.size(); ++j) {
+            int row = startRow + i;
+            int col = startCol + j;
+            
+            if (row < tableView->model()->rowCount() && col < tableView->model()->columnCount()) {
+                QModelIndex idx = tableView->model()->index(row, col);
+                tableView->model()->setData(idx, columns[j], Qt::EditRole);
+            }
+        }
+    }
+    
+    statusBar()->showMessage(tr("Data pasted from clipboard"), 3000);
+}
+
+void MainWindow::exportToCSV()
+{
+    QTableView* tableView = getCurrentTableView();
+    if (!tableView)
+        return;
+
+    // Получаем выделенные ячейки
+    QModelIndexList selectedIndexes = tableView->selectionModel()->selectedIndexes();
+    if (selectedIndexes.isEmpty()) {
+        // Если ничего не выделено, экспортируем всю таблицу
+        selectedIndexes.clear();
+        for (int row = 0; row < tableView->model()->rowCount(); ++row) {
+            for (int col = 0; col < tableView->model()->columnCount(); ++col) {
+                selectedIndexes.append(tableView->model()->index(row, col));
+            }
+        }
+    }
+
+    if (selectedIndexes.isEmpty())
+        return;
+
+    // Запрашиваем имя файла для сохранения
+    QString fileName = QFileDialog::getSaveFileName(this, 
+                                                  tr("Export to CSV"), 
+                                                  QDir::homePath(), 
+                                                  tr("CSV Files (*.csv);;All Files (*)"));
+    
+    if (fileName.isEmpty())
+        return;
+
+    // Добавляем расширение .csv, если его нет
+    if (!fileName.endsWith(".csv", Qt::CaseInsensitive)) {
+        fileName += ".csv";
+    }
+
+    // Находим минимальные и максимальные строки и столбцы
+    int minRow = INT_MAX, maxRow = 0, minCol = INT_MAX, maxCol = 0;
+    for (const QModelIndex &index : selectedIndexes) {
+        minRow = std::min(minRow, index.row());
+        maxRow = std::max(maxRow, index.row());
+        minCol = std::min(minCol, index.column());
+        maxCol = std::max(maxCol, index.column());
+    }
+
+    // Открываем файл для записи
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot open file for writing"));
+        return;
+    }
+
+    QTextStream stream(&file);
+    
+    // Записываем заголовки столбцов
+    QStringList headers;
+    for (int col = minCol; col <= maxCol; ++col) {
+        headers << tableView->model()->headerData(col, Qt::Horizontal).toString();
+    }
+    stream << headers.join(",") << "\n";
+
+    // Записываем данные
+    for (int row = minRow; row <= maxRow; ++row) {
+        QStringList rowData;
+        for (int col = minCol; col <= maxCol; ++col) {
+            QModelIndex index = tableView->model()->index(row, col);
+            if (selectedIndexes.contains(index)) {
+                QString data = tableView->model()->data(index).toString();
+                // Экранируем кавычки и добавляем кавычки если нужно
+                if (data.contains(',') || data.contains('"') || data.contains('\n')) {
+                    data.replace("\"", "\"\"");
+                    data = "\"" + data + "\"";
+                }
+                rowData.append(data);
+            } else {
+                rowData.append("");
+            }
+        }
+        stream << rowData.join(",") << "\n";
+    }
+
+    file.close();
+    statusBar()->showMessage(tr("Data exported to %1").arg(fileName), 3000);
+}
+
+void MainWindow::importFromCSV()
+{
+    EquipmentModel* model = getCurrentModel();
+    if (!model)
+        return;
+
+    // Запрашиваем имя файла для импорта
+    QString fileName = QFileDialog::getOpenFileName(this, 
+                                                  tr("Import from CSV"), 
+                                                  QDir::homePath(), 
+                                                  tr("CSV Files (*.csv)"));
+    
+    if (fileName.isEmpty())
+        return;
+
+    // Открываем файл для чтения
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot open file for reading"));
+        return;
+    }
+
+    QTextStream stream(&file);
+    
+    // Читаем заголовок, чтобы определить колонки
+    QString headerLine = stream.readLine();
+    QStringList headers = headerLine.split(',');
+
+    // Создаем карту соответствия заголовков и индексов колонок
+    QMap<int, int> columnMap;
+    for (int i = 0; i < headers.size(); ++i) {
+        QString header = headers[i];
+        for (int j = 0; j < model->columnCount(); ++j) {
+            if (model->headerData(j, Qt::Horizontal).toString() == header) {
+                columnMap[i] = j;
+                break;
+            }
+        }
+    }
+
+    // Если не удалось найти соответствия для заголовков, предупреждаем
+    if (columnMap.isEmpty()) {
+        QMessageBox::warning(this, tr("Warning"), 
+                            tr("Could not match CSV headers with table columns"));
+        file.close();
+        return;
+    }
+
+    // Читаем данные из CSV и добавляем их в модель
+    int imported = 0;
+    while (!stream.atEnd()) {
+        QString line = stream.readLine();
+        if (line.trimmed().isEmpty())
+            continue;
+
+        // Парсим CSV с учетом кавычек
+        QStringList fields;
+        bool inQuote = false;
+        int quoteStart = -1;
+        QString field;
+        
+        for (int i = 0; i < line.size(); ++i) {
+            const QChar c = line[i];
+            
+            if (c == '"') {
+                if (inQuote) {
+                    // Проверяем двойные кавычки
+                    if (i + 1 < line.size() && line[i + 1] == '"') {
+                        field += '"';
+                        i++; // Пропускаем следующую кавычку
+                    } else {
+                        inQuote = false;
+                    }
+                } else {
+                    inQuote = true;
+                    quoteStart = i;
+                }
+            } else if (c == ',' && !inQuote) {
+                fields.append(field);
+                field.clear();
+            } else {
+                field += c;
+            }
+        }
+        
+        if (!field.isEmpty()) {
+            fields.append(field);
+        }
+
+        // Создаем новую запись и заполняем данными из CSV
+        EquipmentRecord record;
+        for (int i = 0; i < fields.size() && i < headers.size(); ++i) {
+            if (columnMap.contains(i)) {
+                int modelColumn = columnMap[i];
+                QString value = fields[i];
+                
+                // Установка значений в запись в зависимости от колонки
+                switch (modelColumn) {
+                    case 0: record.id = value.trimmed(); break;
+                    case 1: record.type = value.trimmed(); break;
+                    case 2: record.model = value.trimmed(); break;
+                    case 3: record.serial = value.trimmed(); break;
+                    case 4: record.purchase_date = QDate::fromString(value.trimmed(), Qt::ISODate); break;
+                    case 5: record.price = value.trimmed().toDouble(); break;
+                    case 6: record.location = value.trimmed(); break;
+                    case 7: record.status = value.trimmed(); break;
+                    case 8: record.notes = value.trimmed(); break;
+                    default: break;
+                }
+            }
+        }
+
+        // Проверяем валидность записи и добавляем ее в модель
+        if (record.isValid() && !model->hasEquipmentId(record.id)) {
+            model->addRecord(record);
+            imported++;
+        }
+    }
+
+    file.close();
+    statusBar()->showMessage(tr("Imported %1 records from %2").arg(imported).arg(fileName), 3000);
+}
+
+QTableView* MainWindow::getCurrentTableView() const {
+    TabData *tab = getCurrentTab();
+    if (tab) {
+        return tab->tableView;
+    }
+    return nullptr;
+}
+
+EquipmentModel* MainWindow::getCurrentModel() const {
+    TabData *tab = getCurrentTab();
+    if (tab) {
+        return tab->model;
+    }
+    return nullptr;
 }
