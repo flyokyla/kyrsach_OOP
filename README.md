@@ -199,12 +199,12 @@ pr-oftech-main/
  | chartwindow.h/.cpp/.ui      # Окно графиков
  | aboutdialog.h/.cpp/.ui      # Диалог "О программе"
  | settings.h/.cpp             # Управление настройками
-  \ translations/              # Файлы переводов
- |  | office_equipment_en.ts
- |  | office_equipment_ru.ts
- | / office_equipment_es.ts
+ |\ translations/              # Файлы переводов
+ | | office_equipment_en.ts
+ | | office_equipment_ru.ts
+ | | office_equipment_es.ts
+ |/ 
  | CMakeLists.txt              # Конфигурация сборки
-
 ```
 
 ---
