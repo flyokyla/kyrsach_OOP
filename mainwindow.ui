@@ -60,9 +60,6 @@
     <addaction name="separator"/>
     <addaction name="actionCopy"/>
     <addaction name="actionPaste"/>
-    <addaction name="separator"/>
-    <addaction name="actionExportCSV"/>
-    <addaction name="actionImportCSV"/>
    </widget>
    <widget class="QMenu" name="menuAnalytics">
     <property name="title">
@@ -204,16 +201,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+C</string>
-   </property>
-  </action>
-  <action name="actionExportCSV">
-   <property name="text">
-    <string>E&amp;xport to CSV...</string>
-   </property>
-  </action>
-  <action name="actionImportCSV">
-   <property name="text">
-    <string>&amp;Import from CSV...</string>
    </property>
   </action>
  </widget>

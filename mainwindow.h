@@ -194,10 +194,13 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-    QTranslator m_translator;
-    QString m_currentLanguage;
     QTabWidget *m_tabWidget;
-    QVector<TabData> m_tabs;
+    QList<TabData> m_tabs;
+    QString m_currentLanguage;
+    QTranslator m_translator;
+    QTranslator m_qtTranslator;
+    QAction *m_exportCSVAction;
+    QAction *m_importCSVAction;
 
     void createMenuBar();
     void setupConnections();

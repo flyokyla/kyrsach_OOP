@@ -119,6 +119,82 @@
         <source>The document has been modified. Do you want to save your changes?</source>
         <translation>El documento ha sido modificado. ¿Desea guardar los cambios?</translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <translation>Copiar</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Pegar</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Copiar</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>&amp;Pegar</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>Aceptar</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <source>Print Document</source>
+        <translation>Imprimir documento</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>Advertencia</translation>
+    </message>
+    <message>
+        <source>Save Changes</source>
+        <translation>Guardar cambios</translation>
+    </message>
+    <message>
+        <source>The document has been modified. Do you want to save your changes?</source>
+        <translation>El documento ha sido modificado. ¿Quieres guardar los cambios?</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Descartar</translation>
+    </message>
+    <message>
+        <source>&amp;CSV</source>
+        <translation>&amp;CSV</translation>
+    </message>
+    <message>
+        <source>&amp;Export Selection to CSV...</source>
+        <translation>&amp;Exportar selección a CSV...</translation>
+    </message>
+    <message>
+        <source>&amp;Import CSV...</source>
+        <translation>&amp;Importar desde CSV...</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Cerrar</translation>
+    </message>
+    <message>
+        <source>E&amp;xport to CSV...</source>
+        <translation>E&amp;xportar a CSV...</translation>
+    </message>
+    <message>
+        <source>&amp;Import from CSV...</source>
+        <translation>&amp;Importar desde CSV...</translation>
+    </message>
+    <message>
+        <source>Export to CSV...</source>
+        <translation>Exportar a CSV...</translation>
+    </message>
+    <message>
+        <source>Import from CSV...</source>
+        <translation>Importar desde CSV...</translation>
+    </message>
 </context>
 <context>
     <name>EquipmentModel</name>
@@ -217,6 +293,85 @@ de una organización de construcción</translation>
     <message>
         <source>Year</source>
         <translation>Año</translation>
+    </message>
+</context>
+<context>
+    <name>equipmentdialog</name>
+    <message>
+        <source>Equipment Record</source>
+        <translation>Registro de Equipo</translation>
+    </message>
+    <message>
+        <source>Equipment Details</source>
+        <translation>Detalles del Equipo</translation>
+    </message>
+    <message>
+        <source>ID:</source>
+        <translation>ID:</translation>
+    </message>
+    <message>
+        <source>Type:</source>
+        <translation>Tipo:</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>Modelo:</translation>
+    </message>
+    <message>
+        <source>Serial:</source>
+        <translation>Número de Serie:</translation>
+    </message>
+    <message>
+        <source>Purchase Date:</source>
+        <translation>Fecha de Compra:</translation>
+    </message>
+    <message>
+        <source>Price:</source>
+        <translation>Precio:</translation>
+    </message>
+    <message>
+        <source>Location:</source>
+        <translation>Ubicación:</translation>
+    </message>
+    <message>
+        <source>Status:</source>
+        <translation>Estado:</translation>
+    </message>
+    <message>
+        <source>Description:</source>
+        <translation>Descripción:</translation>
+    </message>
+    <message>
+        <source>Serial Number:</source>
+        <translation>Número de Serie:</translation>
+    </message>
+    <message>
+        <source>Add Equipment</source>
+        <translation>Añadir Equipo</translation>
+    </message>
+    <message>
+        <source>Edit Equipment</source>
+        <translation>Editar Equipo</translation>
+    </message>
+    <message>
+        <source>Validation Error</source>
+        <translation>Error de Validación</translation>
+    </message>
+    <message>
+        <source>Type cannot be empty.</source>
+        <translation>El tipo no puede estar vacío.</translation>
+    </message>
+    <message>
+        <source>Model cannot be empty.</source>
+        <translation>El modelo no puede estar vacío.</translation>
+    </message>
+    <message>
+        <source>Serial number cannot be empty.</source>
+        <translation>El número de serie no puede estar vacío.</translation>
+    </message>
+    <message>
+        <source>Location cannot be empty.</source>
+        <translation>La ubicación no puede estar vacía.</translation>
     </message>
 </context>
 </TS> 

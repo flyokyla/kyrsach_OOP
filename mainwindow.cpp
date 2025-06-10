@@ -22,6 +22,9 @@
 #include <QHeaderView>
 #include <QMap>
 #include <QRegularExpression>
+#include <QPushButton>
+#include <QLibraryInfo>
+#include <QCoreApplication>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -173,6 +176,19 @@ void MainWindow::setupConnections() {
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
     connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveAs);
     connect(ui->actionPrint, &QAction::triggered, this, &MainWindow::print);
+    
+    // Add CSV import/export menu
+    QMenu *csvMenu = ui->menuFile->addMenu(tr("&CSV"));
+    
+    // Создаем действия CSV программно и сохраняем их
+    m_exportCSVAction = new QAction(tr("Export to CSV..."), this);
+    connect(m_exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
+    csvMenu->addAction(m_exportCSVAction);
+    
+    m_importCSVAction = new QAction(tr("Import from CSV..."), this);
+    connect(m_importCSVAction, &QAction::triggered, this, &MainWindow::importFromCSV);
+    csvMenu->addAction(m_importCSVAction);
+    
     connect(ui->actionExit, &QAction::triggered, this, &QApplication::quit);
     
     // Edit menu
@@ -180,28 +196,9 @@ void MainWindow::setupConnections() {
     connect(ui->actionEdit, &QAction::triggered, this, &MainWindow::editRecord);
     connect(ui->actionRemove, &QAction::triggered, this, &MainWindow::removeRecord);
     
-    // Add copy/paste actions to Edit menu
-    QAction *copyAction = new QAction(tr("&Copy"), this);
-    copyAction->setShortcut(QKeySequence::Copy);
-    connect(copyAction, &QAction::triggered, this, &MainWindow::copySelectedCells);
-    ui->menuEdit->addSeparator();
-    ui->menuEdit->addAction(copyAction);
-    
-    QAction *pasteAction = new QAction(tr("&Paste"), this);
-    pasteAction->setShortcut(QKeySequence::Paste);
-    connect(pasteAction, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
-    ui->menuEdit->addAction(pasteAction);
-    
-    // Add CSV import/export actions
-    QMenu *csvMenu = ui->menuFile->addMenu(tr("&CSV"));
-    
-    QAction *exportCSVAction = new QAction(tr("&Export Selection to CSV..."), this);
-    connect(exportCSVAction, &QAction::triggered, this, &MainWindow::exportToCSV);
-    csvMenu->addAction(exportCSVAction);
-    
-    QAction *importCSVAction = new QAction(tr("&Import CSV..."), this);
-    connect(importCSVAction, &QAction::triggered, this, &MainWindow::importFromCSV);
-    csvMenu->addAction(importCSVAction);
+    // Подключаем существующие действия Copy и Paste
+    connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copySelectedCells);
+    connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
     
     // Help menu
     connect(ui->actionAbout, &QAction::triggered, this, &MainWindow::showAbout);
@@ -223,6 +220,14 @@ void MainWindow::retranslateUi() {
         tab.model->updateHeaders();
     }
     
+    // Обновляем тексты для CSV меню
+    if (m_exportCSVAction) {
+        m_exportCSVAction->setText(tr("Export to CSV..."));
+    }
+    if (m_importCSVAction) {
+        m_importCSVAction->setText(tr("Import from CSV..."));
+    }
+    
     updateWindowTitle();
 }
 
@@ -230,15 +235,65 @@ void MainWindow::loadLanguage(const QString &lang) {
     if (m_currentLanguage == lang) return;
 
     m_currentLanguage = lang;
-    qApp->removeTranslator(&m_translator);
     
-    // Загружаем .qm файл
+    // Удаляем текущие переводчики
+    qApp->removeTranslator(&m_translator);
+    qApp->removeTranslator(&m_qtTranslator);
+    
+    // 1. Загружаем системные переводы Qt (OK/Cancel/Close и т.д.)
+    QString qtTransFile = QString("qt_%1").arg(lang);
+    qDebug() << "Loading Qt translations for" << qtTransFile;
+    
+    // Список путей для поиска системных переводов Qt
+    QStringList qtPaths;
+    qtPaths << QLibraryInfo::location(QLibraryInfo::TranslationsPath);
+    qtPaths << "/usr/share/qt5/translations";
+    qtPaths << "/usr/share/qt/translations";
+    qtPaths << "/usr/lib/qt/translations";
+    qtPaths << "/usr/lib/x86_64-linux-gnu/qt5/translations";
+    qtPaths << "/usr/lib/i386-linux-gnu/qt5/translations";
+    qtPaths << qApp->applicationDirPath() + "/translations";
+    qtPaths << QDir::currentPath() + "/translations";
+    
+    bool qtLoaded = false;
+    for (const QString &path : qtPaths) {
+        qDebug() << "Trying path:" << path;
+        if (m_qtTranslator.load(qtTransFile, path)) {
+            qApp->installTranslator(&m_qtTranslator);
+            qDebug() << "Loaded Qt translations from:" << path;
+            qtLoaded = true;
+            break;
+        }
+    }
+    
+    if (!qtLoaded) {
+        qWarning() << "Could not load Qt translations for" << lang << "from any location";
+    }
+    
+    // 2. Загружаем .qm файл нашего приложения
     QString qmFile = QString("office_equipment_%1.qm").arg(lang);
-    if (m_translator.load(qmFile, qApp->applicationDirPath())) {
-        qApp->installTranslator(&m_translator);
+    
+    // Список путей для поиска файлов переводов
+    QStringList searchPaths;
+    searchPaths << qApp->applicationDirPath() + "/translations";
+    searchPaths << qApp->applicationDirPath();
+    searchPaths << QDir::currentPath() + "/translations";
+    searchPaths << QDir::currentPath();
+    
+    bool loaded = false;
+    for (const QString &path : searchPaths) {
+        if (m_translator.load(qmFile, path)) {
+            qApp->installTranslator(&m_translator);
+            qDebug() << "Loaded application translations from:" << path;
+            loaded = true;
+            break;
+        }
+    }
+    
+    if (loaded) {
         retranslateUi();
     } else {
-        qWarning() << "Cannot load translation file:" << qmFile;
+        qWarning() << "Cannot load translation file:" << qmFile << "in paths:" << searchPaths;
     }
     
     Settings::saveLanguage(lang);
@@ -261,7 +316,12 @@ void MainWindow::loadFile(const QString &fileName) {
         
     QFile file(fileName);
     if (!file.exists()) {
-        QMessageBox::warning(this, tr("Error"), tr("File does not exist: %1").arg(fileName));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Error"));
+        msgBox.setText(tr("File does not exist: %1").arg(fileName));
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         return;
     }
     
@@ -274,7 +334,12 @@ void MainWindow::loadFile(const QString &fileName) {
         updateWindowTitle();
         updateStatusBar();
     } else {
-        QMessageBox::warning(this, tr("Error"), tr("Could not open file: %1").arg(fileName));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Error"));
+        msgBox.setText(tr("Could not open file: %1").arg(fileName));
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         closeTab(tabIndex);
     }
 }
@@ -383,6 +448,16 @@ void MainWindow::print() {
     if (!tab) return;
     
     QPrintDialog printDialog(this);
+    printDialog.setWindowTitle(tr("Print Document"));
+    
+    // Перевод кнопок диалога печати
+    printDialog.setOption(QAbstractPrintDialog::PrintDialogOption::PrintShowPageSize, true);
+    QAbstractButton* printButton = printDialog.findChild<QAbstractButton*>("print");
+    if (printButton) printButton->setText(QCoreApplication::translate("QPlatformTheme", "Print"));
+    
+    QAbstractButton* cancelButton = printDialog.findChild<QAbstractButton*>("cancel");
+    if (cancelButton) cancelButton->setText(QCoreApplication::translate("QPlatformTheme", "Cancel"));
+    
     if (printDialog.exec() == QDialog::Accepted) {
         QPrinter *printer = printDialog.printer();
         
@@ -443,44 +518,25 @@ void MainWindow::showContextMenu(const QPoint &pos)
     
     if (index.isValid()) {
         // Добавляем пункты для редактирования и удаления записи
-        QAction *editAction = new QAction(tr("Edit"), this);
-        connect(editAction, &QAction::triggered, this, &MainWindow::editRecord);
-        contextMenu.addAction(editAction);
-        
-        QAction *removeAction = new QAction(tr("Remove"), this);
-        connect(removeAction, &QAction::triggered, this, &MainWindow::removeRecord);
-        contextMenu.addAction(removeAction);
+        contextMenu.addAction(ui->actionEdit);
+        contextMenu.addAction(ui->actionRemove);
         
         // Добавляем сепаратор
         contextMenu.addSeparator();
     }
     
     // Добавляем пункт для создания записи
-    QAction *addAction = new QAction(tr("Add"), this);
-    connect(addAction, &QAction::triggered, this, &MainWindow::addRecord);
-    contextMenu.addAction(addAction);
+    contextMenu.addAction(ui->actionAdd);
     
     // Добавляем Copy/Paste
     contextMenu.addSeparator();
-    
-    QAction *copyAction = new QAction(tr("Copy"), this);
-    connect(copyAction, &QAction::triggered, this, &MainWindow::copySelectedCells);
-    contextMenu.addAction(copyAction);
-    
-    QAction *pasteAction = new QAction(tr("Paste"), this);
-    connect(pasteAction, &QAction::triggered, this, &MainWindow::pasteFromClipboard);
-    contextMenu.addAction(pasteAction);
+    contextMenu.addAction(ui->actionCopy);
+    contextMenu.addAction(ui->actionPaste);
     
     // Добавляем опции для экспорта/импорта
     contextMenu.addSeparator();
-    
-    QAction *exportAction = new QAction(tr("Export to CSV..."), this);
-    connect(exportAction, &QAction::triggered, this, &MainWindow::exportToCSV);
-    contextMenu.addAction(exportAction);
-    
-    QAction *importAction = new QAction(tr("Import from CSV..."), this);
-    connect(importAction, &QAction::triggered, this, &MainWindow::importFromCSV);
-    contextMenu.addAction(importAction);
+    contextMenu.addAction(m_exportCSVAction);
+    contextMenu.addAction(m_importCSVAction);
     
     // Показываем контекстное меню
     contextMenu.exec(tableView->viewport()->mapToGlobal(pos));
@@ -511,11 +567,19 @@ bool MainWindow::closeTab(int index) {
     
     TabData &tab = m_tabs[index];
     if (tab.isModified) {
-        QMessageBox::StandardButton ret = QMessageBox::question(this, tr("Save Changes"),
-            tr("The document has been modified. Do you want to save your changes?"),
-            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        // Создаем вручную QMessageBox для возможности перевода кнопок
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Save Changes"));
+        msgBox.setText(tr("The document has been modified. Do you want to save your changes?"));
+        msgBox.setIcon(QMessageBox::Question);
         
-        if (ret == QMessageBox::Save) {
+        QPushButton *saveButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "Save"), QMessageBox::AcceptRole);
+        QPushButton *discardButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "Discard"), QMessageBox::DestructiveRole);
+        QPushButton *cancelButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "Cancel"), QMessageBox::RejectRole);
+        
+        msgBox.exec();
+        
+        if (msgBox.clickedButton() == saveButton) {
             // Сохраняем файл
             m_tabWidget->setCurrentIndex(index);
             if (tab.fileName.isEmpty()) {
@@ -527,7 +591,7 @@ bool MainWindow::closeTab(int index) {
             } else {
                 tab.model->saveToFile(tab.fileName);
             }
-        } else if (ret == QMessageBox::Cancel) {
+        } else if (msgBox.clickedButton() == cancelButton) {
             return false;
         }
     }
@@ -845,7 +909,12 @@ void MainWindow::exportToCSV()
     // Открываем файл для записи
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, tr("Error"), tr("Cannot open file for writing"));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Error"));
+        msgBox.setText(tr("Cannot open file for writing"));
+        msgBox.setIcon(QMessageBox::Critical);
+        msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         return;
     }
 
@@ -924,8 +993,12 @@ void MainWindow::importFromCSV()
 
     // Если не удалось найти соответствия для заголовков, предупреждаем
     if (columnMap.isEmpty()) {
-        QMessageBox::warning(this, tr("Warning"), 
-                            tr("Could not match CSV headers with table columns"));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Warning"));
+        msgBox.setText(tr("Could not match CSV headers with table columns"));
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         file.close();
         return;
     }

@@ -2,6 +2,8 @@
 #include <QVBoxLayout>
 #include <QMessageBox>
 #include <QDate>
+#include <QPushButton>
+#include <QCoreApplication>
 
 equipmentdialog::equipmentdialog(QWidget *parent)
     : QDialog(parent)
@@ -79,6 +81,14 @@ void equipmentdialog::setupUi()
 
     // Buttons
     m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    
+    // Устанавливаем переведенные тексты для кнопок
+    QPushButton *okButton = m_buttonBox->button(QDialogButtonBox::Ok);
+    if (okButton) okButton->setText(QCoreApplication::translate("QPlatformTheme", "OK"));
+    
+    QPushButton *cancelButton = m_buttonBox->button(QDialogButtonBox::Cancel);
+    if (cancelButton) cancelButton->setText(QCoreApplication::translate("QPlatformTheme", "Cancel"));
+    
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &equipmentdialog::accept);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(m_buttonBox);
@@ -115,25 +125,45 @@ EquipmentRecord equipmentdialog::getRecord() const
 bool equipmentdialog::validateInput()
 {
     if (m_typeCombo->currentText().isEmpty()) {
-        QMessageBox::warning(this, tr("Validation Error"), tr("Type cannot be empty."));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Validation Error"));
+        msgBox.setText(tr("Type cannot be empty."));
+        msgBox.setIcon(QMessageBox::Warning);
+        QPushButton *okButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         m_typeCombo->setFocus();
         return false;
     }
 
     if (m_modelEdit->text().isEmpty()) {
-        QMessageBox::warning(this, tr("Validation Error"), tr("Model cannot be empty."));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Validation Error"));
+        msgBox.setText(tr("Model cannot be empty."));
+        msgBox.setIcon(QMessageBox::Warning);
+        QPushButton *okButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         m_modelEdit->setFocus();
         return false;
     }
 
     if (m_serialEdit->text().isEmpty()) {
-        QMessageBox::warning(this, tr("Validation Error"), tr("Serial number cannot be empty."));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Validation Error"));
+        msgBox.setText(tr("Serial number cannot be empty."));
+        msgBox.setIcon(QMessageBox::Warning);
+        QPushButton *okButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         m_serialEdit->setFocus();
         return false;
     }
 
     if (m_locationEdit->text().isEmpty()) {
-        QMessageBox::warning(this, tr("Validation Error"), tr("Location cannot be empty."));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("Validation Error"));
+        msgBox.setText(tr("Location cannot be empty."));
+        msgBox.setIcon(QMessageBox::Warning);
+        QPushButton *okButton = msgBox.addButton(QCoreApplication::translate("QPlatformTheme", "OK"), QMessageBox::AcceptRole);
+        msgBox.exec();
         m_locationEdit->setFocus();
         return false;
     }

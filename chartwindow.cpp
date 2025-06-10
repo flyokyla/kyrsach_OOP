@@ -9,6 +9,8 @@
 #include <QtCharts/QPieSeries>
 #include <QtCharts/QChart>
 #include <QMap>
+#include <QPushButton>
+#include <QCoreApplication>
 
 chartwindow::chartwindow(const QVector<EquipmentRecord> &records, QWidget *parent) :
     QDialog(parent),
@@ -16,6 +18,12 @@ chartwindow::chartwindow(const QVector<EquipmentRecord> &records, QWidget *paren
     m_records(records)
 {
     ui->setupUi(this);
+
+    // Устанавливаем переведенный текст для кнопки Close
+    QPushButton *closeButton = ui->buttonBox->button(QDialogButtonBox::Close);
+    if (closeButton) {
+        closeButton->setText(QCoreApplication::translate("QPlatformTheme", "Close"));
+    }
 
     ui->comboBox->addItem(tr("Equipment by Type"));
     ui->comboBox->addItem(tr("Price Distribution"));

@@ -1,11 +1,20 @@
 #include "aboutdialog.h"
 #include "ui_aboutdialog.h"
+#include <QPushButton>
+#include <QCoreApplication>
 
 aboutdialog::aboutdialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::aboutdialog)
 {
     ui->setupUi(this);
+    
+    // Устанавливаем переведенный текст для кнопки OK
+    QPushButton *okButton = ui->buttonBox->button(QDialogButtonBox::Ok);
+    if (okButton) {
+        okButton->setText(QCoreApplication::translate("QPlatformTheme", "OK"));
+    }
+    
     updateText();
 }
 

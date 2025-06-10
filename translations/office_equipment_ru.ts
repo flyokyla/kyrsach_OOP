@@ -122,6 +122,74 @@ Run the update_translations CMake target to populate the source strings in this 
         <source>The document has been modified. Do you want to save your changes?</source>
         <translation>Документ был изменён. Хотите сохранить изменения?</translation>
     </message>
+    <message>
+        <source>Copy</source>
+        <translation>Копировать</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Вставить</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Копировать</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>&amp;Вставить</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>ОК</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <source>Print Document</source>
+        <translation>Печать документа</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>Предупреждение</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Не сохранять</translation>
+    </message>
+    <message>
+        <source>&amp;CSV</source>
+        <translation>&amp;CSV</translation>
+    </message>
+    <message>
+        <source>&amp;Export Selection to CSV...</source>
+        <translation>&amp;Экспорт выделения в CSV...</translation>
+    </message>
+    <message>
+        <source>&amp;Import CSV...</source>
+        <translation>&amp;Импорт из CSV...</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Закрыть</translation>
+    </message>
+    <message>
+        <source>E&amp;xport to CSV...</source>
+        <translation>Э&amp;кспорт в CSV...</translation>
+    </message>
+    <message>
+        <source>&amp;Import from CSV...</source>
+        <translation>&amp;Импорт из CSV...</translation>
+    </message>
+    <message>
+        <source>Export to CSV...</source>
+        <translation>Экспорт в CSV...</translation>
+    </message>
+    <message>
+        <source>Import from CSV...</source>
+        <translation>Импорт из CSV...</translation>
+    </message>
 </context>
 <context>
     <name>EquipmentModel</name>
@@ -220,6 +288,85 @@ of a construction organization</source>
     <message>
         <source>Year</source>
         <translation>Год</translation>
+    </message>
+</context>
+<context>
+    <name>equipmentdialog</name>
+    <message>
+        <source>Equipment Record</source>
+        <translation>Запись оборудования</translation>
+    </message>
+    <message>
+        <source>Equipment Details</source>
+        <translation>Детали оборудования</translation>
+    </message>
+    <message>
+        <source>ID:</source>
+        <translation>ID:</translation>
+    </message>
+    <message>
+        <source>Type:</source>
+        <translation>Тип:</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>Модель:</translation>
+    </message>
+    <message>
+        <source>Serial:</source>
+        <translation>Серийный номер:</translation>
+    </message>
+    <message>
+        <source>Purchase Date:</source>
+        <translation>Дата покупки:</translation>
+    </message>
+    <message>
+        <source>Price:</source>
+        <translation>Цена:</translation>
+    </message>
+    <message>
+        <source>Location:</source>
+        <translation>Местоположение:</translation>
+    </message>
+    <message>
+        <source>Status:</source>
+        <translation>Статус:</translation>
+    </message>
+    <message>
+        <source>Description:</source>
+        <translation>Описание:</translation>
+    </message>
+    <message>
+        <source>Serial Number:</source>
+        <translation>Серийный номер:</translation>
+    </message>
+    <message>
+        <source>Add Equipment</source>
+        <translation>Добавить оборудование</translation>
+    </message>
+    <message>
+        <source>Edit Equipment</source>
+        <translation>Редактировать оборудование</translation>
+    </message>
+    <message>
+        <source>Validation Error</source>
+        <translation>Ошибка валидации</translation>
+    </message>
+    <message>
+        <source>Type cannot be empty.</source>
+        <translation>Тип не может быть пустым.</translation>
+    </message>
+    <message>
+        <source>Model cannot be empty.</source>
+        <translation>Модель не может быть пустой.</translation>
+    </message>
+    <message>
+        <source>Serial number cannot be empty.</source>
+        <translation>Серийный номер не может быть пустым.</translation>
+    </message>
+    <message>
+        <source>Location cannot be empty.</source>
+        <translation>Местоположение не может быть пустым.</translation>
     </message>
 </context>
 </TS>
